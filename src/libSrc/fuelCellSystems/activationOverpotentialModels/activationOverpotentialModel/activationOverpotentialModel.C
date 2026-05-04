@@ -108,6 +108,8 @@ Foam::activationOverpotentialModel::activationOverpotentialModel
     phiNames_(dict_.lookup("phiNames")),
     relax_(dict_.lookupOrDefault<scalar>("relax", 1.0)),
     alpha_(dict_.lookupOrDefault<scalar>("alpha", 0.5)),
+    alphaA_(dict_.lookupOrDefault<scalar>("alphaA", -1.0)),
+    alphaC_(dict_.lookupOrDefault<scalar>("alphaC", -1.0)),
     gamma_(dict_.lookupOrDefault<scalar>("gamma", 1.0)),
     j0_("j0", dimCurrent/dimVolume, dict_),
 

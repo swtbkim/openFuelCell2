@@ -106,6 +106,8 @@ protected:
         // relax, alpha, j0, Xref, gamma
         scalar relax_;
         scalar alpha_;
+        scalar alphaA_;
+        scalar alphaC_;
         scalar gamma_;
         dimensionedScalar j0_;
 
