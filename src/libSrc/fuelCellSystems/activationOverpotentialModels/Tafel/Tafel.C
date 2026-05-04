@@ -137,6 +137,7 @@ void Foam::activationOverpotentialModels::Tafel<Thermo>::correct()
     //- anode side, >0
     scalar n = this->nernst_->rxnList()["e"];
     scalar sign = n/mag(n);
+    scalar alphaA = (this->alphaA_ > 0) ? this->alphaA_ : this->alpha_;
 
     //- The total current: volume averaged
     scalar Rj(0.0);
@@ -163,7 +164,7 @@ void Foam::activationOverpotentialModels::Tafel<Thermo>::correct()
             coeff[fluidId]*
             Foam::pow(s[fluidId], this->gamma_)*
             (
-                Foam::exp(n*this->alpha_*F*eta[fluidId]/Rgas/T[fluidId])
+                Foam::exp(n*alphaA*F*eta[fluidId]/Rgas/T[fluidId])
             )
             ,
             scalar(0)
