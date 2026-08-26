@@ -121,10 +121,17 @@ void Foam::regionTypes::fluid::mapToCell
       * (phase.U()&g)
     );
 
+    Info<< "gravityHeat " << name() << ": "
+        << Foam::gSum(heatSource.primitiveField()*this->V()) << " W" << endl;
+
     forAll(phases_->phases(), phasei)
     {
         heatSource += phases_->phases()[phasei].Qdot().ref();
     }
+
+    Info<< "fluidHeat " << name() << ": "
+        << Foam::gSum(heatSource.primitiveField()*this->V())
+        << " W (incl. gravity)" << endl;
 
     // Heat transfer field in parent mesh
     volScalarField heatSource0

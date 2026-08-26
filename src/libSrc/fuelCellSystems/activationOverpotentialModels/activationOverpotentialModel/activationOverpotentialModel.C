@@ -179,6 +179,8 @@ Foam::activationOverpotentialModel::Qdot() const
     scalar n = nernst_->rxnList()["e"];
     scalar sign = n/mag(n);
 
+    scalar Qirr(0), Qrev(0), dSbar(0);
+
     forAll(cells, cellI)
     {
         label fluidId = cells[cellI];
@@ -186,7 +188,22 @@ Foam::activationOverpotentialModel::Qdot() const
         q.ref()[fluidId] =
             j[fluidId]*(sign*eta[fluidId] - T[fluidId]*nernst_->deltaS()[fluidId]
             /mag(nernst_->rxnList()["e"])/F);
+
+        Qirr += fluidPhase.V()[fluidId]*j[fluidId]*sign*eta[fluidId];
+        Qrev -= fluidPhase.V()[fluidId]*j[fluidId]
+               *T[fluidId]*nernst_->deltaS()[fluidId]
+               /mag(nernst_->rxnList()["e"])/F;
+        dSbar += nernst_->deltaS()[fluidId];
     }
+
+    reduce(Qirr, sumOp<scalar>());
+    reduce(Qrev, sumOp<scalar>());
+    reduce(dSbar, sumOp<scalar>());
+
+    Info<< "Qdot " << zoneName_ << ": irr = " << Qirr
+        << " W, rev = " << Qrev
+        << " W, mean deltaS = " << dSbar/max(label(cells.size()), 1)
+        << " J/mol/K" << endl;
 
     return q;
 }
