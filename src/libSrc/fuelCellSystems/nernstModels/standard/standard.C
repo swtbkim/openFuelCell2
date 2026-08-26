@@ -80,19 +80,28 @@ void Foam::nernstModels::standard<Thermo, OtherThermo>::correct()
             const scalar Wi = this->thermo_.composition().W(speciesI)/1000.0;
             scalar stoiCoeffI = this->rxnList()[nameI];
 
+            const scalarField& X = phase1_.X(nameI);
+
             forAll(this->deltaH(), cellI)
             {
+                //- Partial pressure (clamped): evaluating S at X_i*p adds the
+                //  -R*ln(X_i*p/Pstd) mixing term, so deltaS is consistent with
+                //  the composition-dependent Nernst potential and the reversible
+                //  heat T*deltaS/(nF) reproduces Vtn = dH/(nF) at any mixture.
+                //  (The former S(p_total) + explicit RT*lnQ split omitted the
+                //  mixing entropy from deltaS and double-counted total p.)
+                const scalar pPart =
+                    Foam::max(X[cellI], this->residualY())*p[cellI];
+
                 this->deltaH()[cellI] +=
                     stoiCoeffI*this->thermo_.composition().Ha(speciesI, p[cellI], T[cellI])*Wi;
 
                 this->deltaS()[cellI] +=
-                    stoiCoeffI*this->thermo_.composition().S(speciesI, p[cellI], T[cellI])*Wi;
+                    stoiCoeffI*this->thermo_.composition().S(speciesI, pPart, T[cellI])*Wi;
 
                 deltaHS[cellI] +=
-                    stoiCoeffI*this->thermo_.composition().S(speciesI, p[cellI], T[cellI])*Wi*T[cellI];
+                    stoiCoeffI*this->thermo_.composition().S(speciesI, pPart, T[cellI])*Wi*T[cellI];
             }
-
-            const scalarField& X = phase1_.X(nameI);
 
             Qrxn *= Foam::pow(Foam::max(X, this->residualY())*pRef, stoiCoeffI);
         }
@@ -114,22 +123,41 @@ void Foam::nernstModels::standard<Thermo, OtherThermo>::correct()
         const scalar Wi = this->thermo_.composition().W(speciesI)/1000.0;
         scalar stoiCoeffI = this->rxnList()[water];
 
-        forAll(this->deltaH(), cellI)
-        {
-            this->deltaH()[cellI] += stoiCoeffI*otherLocalThermo.Ha(p[cellI], T[cellI])*Wi;
-            this->deltaS()[cellI] += stoiCoeffI*otherLocalThermo.S(p[cellI], T[cellI])*Wi;
-            deltaHS[cellI] += stoiCoeffI*otherLocalThermo.S(p[cellI], T[cellI])*Wi*T[cellI];
-        }
-
         if (phase1_.name() == phase2_.name())
         {
+            //- Gaseous water in the same phase: partial-pressure entropy,
+            //  same treatment as the other gas species.
             const scalarField& X = phase1_.X(water);
+
+            forAll(this->deltaH(), cellI)
+            {
+                const scalar pPart = Foam::max(X[cellI], 1.0e-6)*p[cellI];
+
+                this->deltaH()[cellI] += stoiCoeffI*otherLocalThermo.Ha(p[cellI], T[cellI])*Wi;
+                this->deltaS()[cellI] += stoiCoeffI*otherLocalThermo.S(pPart, T[cellI])*Wi;
+                deltaHS[cellI] += stoiCoeffI*otherLocalThermo.S(pPart, T[cellI])*Wi*T[cellI];
+            }
 
             Qrxn *= Foam::pow(Foam::max(X, 1.0e-6)*pRef, stoiCoeffI);
         }
+        else
+        {
+            //- Water in the other (liquid/dissolved) phase: unit activity,
+            //  total-pressure entropy as before (PEM path preserved).
+            forAll(this->deltaH(), cellI)
+            {
+                this->deltaH()[cellI] += stoiCoeffI*otherLocalThermo.Ha(p[cellI], T[cellI])*Wi;
+                this->deltaS()[cellI] += stoiCoeffI*otherLocalThermo.S(p[cellI], T[cellI])*Wi;
+                deltaHS[cellI] += stoiCoeffI*otherLocalThermo.S(p[cellI], T[cellI])*Wi*T[cellI];
+            }
+        }
     }
 
-    nernst = -(-(this->deltaH() - deltaHS) - Rgas*T*Foam::log(Qrxn))/this->rxnList()["e"]/F;
+    //- deltaHS = T*deltaS now already contains the full reaction quotient
+    //  (partial-pressure entropies), so the former explicit -Rgas*T*log(Qrxn)
+    //  term is dropped: keeping it would double-count the composition (and,
+    //  formerly, the total pressure).  Identical result at p = pRef.
+    nernst = -(-(this->deltaH() - deltaHS))/this->rxnList()["e"]/F;
 
     Info<< "Nernst " << this->operator()().mesh().name()
         << ": min = " << Foam::min(this->operator()().primitiveField())
