@@ -81,6 +81,18 @@ void Foam::activationOverpotentialModels::ButlerVolmer<Thermo>::correct()
         ionPhase.template lookupObject<volScalarField>("J")
     );
 
+    //- Linearised source coefficients |dj/deta| (A/(m3 V)) for the
+    //  implicit fvm::Sp stabilisation in electric::solve().
+    //  dJ/dphi_own = -|dj/deta| on both regions at both electrodes.
+    scalarField& SpE = const_cast<volScalarField&>
+    (
+        electronPhase.template lookupObject<volScalarField>("Jp")
+    );
+    scalarField& SpI = const_cast<volScalarField&>
+    (
+        ionPhase.template lookupObject<volScalarField>("Jp")
+    );
+
     //- Potential fields
     const scalarField& phiE = electronPhase.template
         lookupObject<volScalarField>
@@ -156,24 +168,36 @@ void Foam::activationOverpotentialModels::ButlerVolmer<Thermo>::correct()
           * this->relax_
         );
 
-        //- Buttler-volmer relation
-        j[fluidId] = Foam::max
-        (
+        //- Buttler-volmer relation.
+        //  Bidirectional (no max(j,0) clamp): the reverse branch is what
+        //  gives an exact open-circuit equilibrium and prevents the
+        //  one-sided rectification of iterative over/undershoots.
+        scalar j0C =
             this->j0_.value()*
             coeff[fluidId]*
-            Foam::pow(s[fluidId], this->gamma_)*
+            Foam::pow(s[fluidId], this->gamma_);
+
+        scalar ePlus =
+            Foam::exp(n*this->alpha_*F*eta[fluidId]/Rgas/T[fluidId]);
+        scalar eMinus =
+            Foam::exp(-n*(scalar(1) - this->alpha_)*F*eta[fluidId]/Rgas/T[fluidId]);
+
+        j[fluidId] = j0C*(ePlus - eMinus);
+
+        //- |dj/deta| for the implicit stabilisation (always >= 0)
+        scalar djdeta =
+            j0C*(F/Rgas/T[fluidId])*n*
             (
-                Foam::exp(n*this->alpha_*F*eta[fluidId]/Rgas/T[fluidId])
-              - Foam::exp(-n*(scalar(1) - this->alpha_)*F*eta[fluidId]/Rgas/T[fluidId])
-            )
-            ,
-            scalar(0)
-        );
+                this->alpha_*ePlus + (scalar(1) - this->alpha_)*eMinus
+            );
 
         //- anode side: SE = Rj, SI = -Rj
         //- cathode side: SE = -Rj, SI = Rj
         SE[electronId] = -sign*j[fluidId];
         SI[ionId] = -SE[electronId];
+
+        SpE[electronId] = Foam::mag(djdeta);
+        SpI[ionId] = Foam::mag(djdeta);
 
         Rj += fluidPhase.V()[fluidId] * j[fluidId];
     }

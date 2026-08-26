@@ -90,8 +90,8 @@ Foam::activationOverpotentialModel::activationOverpotentialModel
             IOobject::groupName("eta", phase.mesh().name()),
             phase.mesh().time().timeName(),
             phase.mesh(),
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
+            IOobject::READ_IF_PRESENT,   // was NO_READ: restarts re-shocked
+            IOobject::AUTO_WRITE         // the kinetics from eta = 0 (issue #3)
         ),
         phase.mesh(),
         dimensionedScalar
@@ -118,7 +118,7 @@ Foam::activationOverpotentialModel::activationOverpotentialModel
             "j",
             phase_.mesh().time().timeName(),
             phase_.mesh(),
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,   // was NO_READ (see eta_ above)
             IOobject::AUTO_WRITE
         ),
         phase_.mesh(),

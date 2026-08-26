@@ -103,6 +103,20 @@ Foam::regionTypes::electric::electric
         dimensionedScalar(dimCurrent/dimVol, Zero),
         zeroGradientFvPatchScalarField::typeName
     ),
+    jp_
+    (
+        IOobject
+        (
+            "Jp",
+            this->time().timeName(),
+            *this,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        *this,
+        dimensionedScalar(dimCurrent/dimVol/dimensionSet(1, 2, -3, 0, 0, -1, 0), Zero),
+        zeroGradientFvPatchScalarField::typeName
+    ),
     sigmaField_
     (
         IOobject
@@ -190,10 +204,17 @@ void Foam::regionTypes::electric::solve()
 {
     Info << "\nSolve for region " << name() << ":\n" << endl;
 
+    //- Butler-Volmer source linearised about the current iterate:
+    //  J(phi) ~ J_old + dJ/dphi*(phi - phi_old) with dJ/dphi_own = -jp_
+    //  (jp_ = |dj/deta| >= 0, filled by the activation models).
+    //  At convergence phi = phi_old and the two added terms cancel,
+    //  so the converged solution is unchanged.
     tmp<fvScalarMatrix> phiEqn
     (
       - fvm::laplacian(sigmaField_, phi_, "laplacian(sigma,phi)")
       - j_
+      + fvm::Sp(jp_, phi_)
+      - jp_*phi_
     );
 
     //- Set reference values
