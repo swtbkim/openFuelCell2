@@ -80,6 +80,12 @@ private:
         //- Source term (A/m3)
         volScalarField j_;
 
+        //- Linearised source coefficient |dj/deta| (A/(m3 V)),
+        //  written by activation models ("Jp"); enters solve() as an
+        //  implicit fvm::Sp term so the Butler-Volmer coupling becomes
+        //  damped-Newton instead of fully explicit.
+        volScalarField jp_;
+
         //- Electric conductivity
         volScalarField sigmaField_;
 

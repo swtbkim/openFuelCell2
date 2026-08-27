@@ -90,8 +90,8 @@ Foam::activationOverpotentialModel::activationOverpotentialModel
             IOobject::groupName("eta", phase.mesh().name()),
             phase.mesh().time().timeName(),
             phase.mesh(),
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
+            IOobject::READ_IF_PRESENT,   // was NO_READ: restarts re-shocked
+            IOobject::AUTO_WRITE         // the kinetics from eta = 0 (issue #3)
         ),
         phase.mesh(),
         dimensionedScalar
@@ -120,7 +120,7 @@ Foam::activationOverpotentialModel::activationOverpotentialModel
             "j",
             phase_.mesh().time().timeName(),
             phase_.mesh(),
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,   // was NO_READ (see eta_ above)
             IOobject::AUTO_WRITE
         ),
         phase_.mesh(),
@@ -181,6 +181,8 @@ Foam::activationOverpotentialModel::Qdot() const
     scalar n = nernst_->rxnList()["e"];
     scalar sign = n/mag(n);
 
+    scalar Qirr(0), Qrev(0), dSbar(0);
+
     forAll(cells, cellI)
     {
         label fluidId = cells[cellI];
@@ -188,7 +190,22 @@ Foam::activationOverpotentialModel::Qdot() const
         q.ref()[fluidId] =
             j[fluidId]*(sign*eta[fluidId] - T[fluidId]*nernst_->deltaS()[fluidId]
             /mag(nernst_->rxnList()["e"])/F);
+
+        Qirr += fluidPhase.V()[fluidId]*j[fluidId]*sign*eta[fluidId];
+        Qrev -= fluidPhase.V()[fluidId]*j[fluidId]
+               *T[fluidId]*nernst_->deltaS()[fluidId]
+               /mag(nernst_->rxnList()["e"])/F;
+        dSbar += nernst_->deltaS()[fluidId];
     }
+
+    reduce(Qirr, sumOp<scalar>());
+    reduce(Qrev, sumOp<scalar>());
+    reduce(dSbar, sumOp<scalar>());
+
+    Info<< "Qdot " << zoneName_ << ": irr = " << Qirr
+        << " W, rev = " << Qrev
+        << " W, mean deltaS = " << dSbar/max(label(cells.size()), 1)
+        << " J/mol/K" << endl;
 
     return q;
 }

@@ -103,6 +103,20 @@ Foam::regionTypes::electric::electric
         dimensionedScalar(dimCurrent/dimVol, Zero),
         zeroGradientFvPatchScalarField::typeName
     ),
+    jp_
+    (
+        IOobject
+        (
+            "Jp",
+            this->time().timeName(),
+            *this,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        *this,
+        dimensionedScalar(dimCurrent/dimVol/dimensionSet(1, 2, -3, 0, 0, -1, 0), Zero),
+        zeroGradientFvPatchScalarField::typeName
+    ),
     sigmaField_
     (
         IOobject
@@ -190,10 +204,17 @@ void Foam::regionTypes::electric::solve()
 {
     Info << "\nSolve for region " << name() << ":\n" << endl;
 
+    //- Butler-Volmer source linearised about the current iterate:
+    //  J(phi) ~ J_old + dJ/dphi*(phi - phi_old) with dJ/dphi_own = -jp_
+    //  (jp_ = |dj/deta| >= 0, filled by the activation models).
+    //  At convergence phi = phi_old and the two added terms cancel,
+    //  so the converged solution is unchanged.
     tmp<fvScalarMatrix> phiEqn
     (
       - fvm::laplacian(sigmaField_, phi_, "laplacian(sigma,phi)")
       - j_
+      + fvm::Sp(jp_, phi_)
+      - jp_*phi_
     );
 
     //- Set reference values
@@ -218,7 +239,24 @@ void Foam::regionTypes::electric::solve()
 
     phiEqn->solve();
 
-    i_ = -sigmaField_ * fvc::grad(phi_);
+    //- Current density reconstructed from the FACE fluxes with harmonic
+    //  sigma interpolation, consistent with the harmonic laplacian above.
+    //  The former cell-centred form  i_ = -sigma*fvc::grad(phi)  leaks the
+    //  large potential gradient of a low-sigma neighbour layer into
+    //  high-sigma cells at conductivity jumps (e.g. foam/interconnect,
+    //  ~1e4x), inflating |i| there by orders of magnitude and with it the
+    //  Joule heating (i&i)/sigma used in mapToCell.
+    {
+        const surfaceScalarField sigmaHarm
+        (
+            scalar(1)/fvc::interpolate(scalar(1)/sigmaField_)
+        );
+
+        i_ = fvc::reconstruct
+        (
+          - sigmaHarm*fvc::snGrad(phi_)*this->magSf()
+        );
+    }
     i_.correctBoundaryConditions();
 
     if (dissolved_.valid())
@@ -311,6 +349,10 @@ void Foam::regionTypes::electric::mapToCell
 
     //- heat source
     volScalarField heatSource = (i_ & i_)/sigmaField_;
+
+    Info<< "Joule " << name() << ": "
+        << Foam::gSum(heatSource.primitiveField()*this->V())
+        << " W" << endl;
     volScalarField heatSource0
     (
         IOobject

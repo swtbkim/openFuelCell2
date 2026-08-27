@@ -31,6 +31,7 @@ License
 #include "NernstModel.H"
 #include "standard.H"
 #include "fixedValue.H"
+#include "overallReaction.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -189,6 +190,43 @@ namespace Foam
     makeSpecieNernstModel
     (
         fixedValue,
+        constGasEThermoPhysics,
+        icoPoly8EThermoPhysics
+    );
+
+    makeNernstModel
+    (
+        overallReaction,
+        gasEThermoPhysics,
+        constFluidEThermoPhysics
+    );
+    makeSpecieNernstModel
+    (
+        overallReaction,
+        gasEThermoPhysics,
+        gasEThermoPhysics
+    );
+    makeSpecieNernstModel
+    (
+        overallReaction,
+        constGasEThermoPhysics,
+        constFluidEThermoPhysics
+    );
+    makeSpecieNernstModel
+    (
+        overallReaction,
+        constGasEThermoPhysics,
+        constGasEThermoPhysics
+    );
+    makeNernstModel
+    (
+        overallReaction,
+        gasEThermoPhysics,
+        icoPoly8EThermoPhysics
+    );
+    makeSpecieNernstModel
+    (
+        overallReaction,
         constGasEThermoPhysics,
         icoPoly8EThermoPhysics
     );
