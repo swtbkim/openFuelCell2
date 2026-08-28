@@ -1,5 +1,13 @@
 # openFuelCell2
 
+> **Note**: this is a modified version of upstream
+> [openFuelCell2/openFuelCell2](https://github.com/openFuelCell2/openFuelCell2).
+> This `develop` branch adds: implicitly stabilised (Sp-linearised) bidirectional
+> Butler-Volmer coupling, restartable eta/j fields, mixing entropy in the
+> reversible heat, face-consistent current reconstruction at conductivity jumps,
+> asymmetric transfer coefficients (alphaA/alphaC), and kohSigma /
+> overallReaction models for alkaline electrolysis.
+
 [openFuelCell2](https://openfuelcell2.github.io/) is a computational fluid dynamics (CFD) toolbox for simulating electrochemical devices such as fuel cells and electrolysis. The solver is based on the open-source library, OpenFOAM®.
 
 ## About the code
